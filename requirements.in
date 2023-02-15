@@ -3,3 +3,10 @@ python-dotenv
 requests
 gunicorn
 oura
+oauthlib
+pyOpenSSL
+Flask-Login
+psycopg2
+psycopg2-binary
+flask_sqlalchemy
+Flask-Migrate

@@ -23,5 +23,9 @@ if [ -d "venv" ]; then
   pip-sync
 fi
 
+echo "Ensuring the database is in place"
+flask db init
+flask create-tables
+
 
 
