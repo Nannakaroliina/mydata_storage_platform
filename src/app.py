@@ -48,7 +48,7 @@ def load_user(user_id):
     return User.get(user_id)
 
 
-@app.route("/", methods=['GET'])
+@app.route("/")
 def index():
     """
     Render the index page for the app
@@ -159,7 +159,7 @@ def logout():
     return redirect(url_for("index"))
 
 
-@app.route("/authorise-oura", methods=['GET'])
+@app.route("/authorise-oura")
 @login_required
 def authorise_oura():
     """
@@ -169,7 +169,7 @@ def authorise_oura():
     return redirect(oura_authorise_url[0])
 
 
-@app.route("/callback", methods=['GET'])
+@app.route("/callback")
 @login_required
 def callback_oura():
     """
@@ -188,7 +188,7 @@ def callback_oura():
         return 'Authorisation needed for platform usage', 401
 
 
-@app.route("/oura", methods=['GET'])
+@app.route("/oura")
 @login_required
 def get_user_data():
     """
@@ -204,7 +204,7 @@ def get_user_data():
     return summary
 
 
-@app.route("/oura/<string:stat>", methods=['GET'])
+@app.route("/oura/<string:stat>")
 @login_required
 def get_oura_activity(stat: str):
     """
