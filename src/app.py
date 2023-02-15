@@ -182,12 +182,12 @@ def authorise_oura():
 
 @app.route("/fitbit/auth")
 @login_required
-def authorise_oura():
+def authorise_fitbit():
     """
     Endpoint to redirect the user to Fitbit auth page
     :return: redirect to Fitbit authorise url
     """
-    return redirect(oura_authorise_url[0])
+    return redirect(fitbit_authorise_url[0])
 
 
 @app.route("/callback")
