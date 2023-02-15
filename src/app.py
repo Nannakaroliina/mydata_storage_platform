@@ -1,12 +1,14 @@
 """
 Module for the app
 """
+import datetime
 import json
 import logging
 import os
 
 import click
 import requests
+from fitbit import FitbitOauth2Client, Fitbit
 from flask import Flask, redirect, request, url_for
 from flask.cli import with_appcontext
 from flask_login import LoginManager, current_user, login_required, logout_user, login_user
@@ -33,9 +35,15 @@ client = WebApplicationClient(app.config.get('GOOGLE_CLIENT_ID'))
 
 # Configuration for Oura OAuth2 client to authorise use of Oura data
 app_url = app.config.get('APP_URL')
-auth_client = OuraOAuth2Client(client_id=app.config.get('OURA_CLIENT_ID'),
+oura_auth_client = OuraOAuth2Client(client_id=app.config.get('OURA_CLIENT_ID'),
                                client_secret=app.config.get('OURA_CLIENT_SECRET'))
-oura_authorise_url = auth_client.authorize_endpoint(redirect_uri=app_url + '/callback')
+oura_authorise_url = oura_auth_client.authorize_endpoint(redirect_uri=app_url + '/callback')
+
+# Fitbit OAuth2 Client
+fitbit_auth_client = FitbitOauth2Client(client_id=app.config.get('FITBIT_CLIENT_ID'),
+                                   client_secret=app.config.get('FITBIT_CLIENT_SECRET'),
+                                   timeout=60)
+fitbit_authorise_url = fitbit_auth_client.authorize_token_url(redirect_uri=app_url + '/fitbit/callback')
 
 
 @login_manager.user_loader
@@ -61,7 +69,10 @@ def index():
             "<p>You're logged in! Email: {}</p>"
             '<br>'
             '<p>To perform Oura auth click the link below</p>'
-            '<p><a href="/authorise-oura"> Oura Auth </a> </p>'
+            '<p><a href="/oura/auth"> Oura Auth </a> </p>'
+            '<br>'
+            '<p>To perform Fitbit auth click the link below</p>'
+            '<p><a href="/fitbit/auth"> Fitbit Auth </a> </p>'
             '<br>'
             '<a class="button" href="/logout">Logout</a>'.format(
                 current_user.name, current_user.email
@@ -159,12 +170,22 @@ def logout():
     return redirect(url_for("index"))
 
 
-@app.route("/authorise-oura")
+@app.route("/oura/auth")
 @login_required
 def authorise_oura():
     """
     Endpoint to redirect the user to Oura auth page
     :return: redirect to Oura authorise url
+    """
+    return redirect(oura_authorise_url[0])
+
+
+@app.route("/fitbit/auth")
+@login_required
+def authorise_oura():
+    """
+    Endpoint to redirect the user to Fitbit auth page
+    :return: redirect to Fitbit authorise url
     """
     return redirect(oura_authorise_url[0])
 
@@ -179,10 +200,29 @@ def callback_oura():
     try:
         logging.info('Successful authorisation')
         code = request.args.get('code')
-        token = auth_client.fetch_access_token(code=code)
+        token = oura_auth_client.fetch_access_token(code=code)
         app.config['OURA_ACCESS_TOKEN'] = token['access_token']
         app.config['OURA_REFRESH_TOKEN'] = token['refresh_token']
         return redirect(url_for('.get_user_data'))
+    except Exception as e:
+        logging.error(e)
+        return 'Authorisation needed for platform usage', 401
+
+
+@app.route("/fitbit/callback")
+@login_required
+def callback_fitbit():
+    """
+    Endpoint for successful auth
+    :return: redirect to data endpoint
+    """
+    try:
+        logging.info('Successful authorisation')
+        code = request.args.get('code')
+        token = fitbit_auth_client.fetch_access_token(code=code)
+        app.config['FITBIT_ACCESS_TOKEN'] = token['access_token']
+        app.config['FITBIT_REFRESH_TOKEN'] = token['refresh_token']
+        return redirect(url_for('.fitbit_auth_success'))
     except Exception as e:
         logging.error(e)
         return 'Authorisation needed for platform usage', 401
@@ -192,12 +232,47 @@ def callback_oura():
 @login_required
 def get_user_data():
     """
-    Render the index page for the app
-    :return: template for web app
+    Get user data from Oura
+    :return: User data json
     """
     try:
-        oura = create_client()
+        oura = create_oura_client()
         summary = oura.user_info()
+    except Exception as e:
+        logging.error(e)
+        summary = 'Something went wrong, make sure you have authorised first.'
+    return summary
+
+
+@app.route("/fitbit")
+@login_required
+def fitbit_auth_success():
+    """
+    Get user data from Fitbit
+    :return: User data json
+    """
+    try:
+        summary = 'Fitbit auth success'
+    except Exception as e:
+        logging.error(e)
+        summary = 'Something went wrong, make sure you have authorised first.'
+    return summary
+
+
+@app.route("/fitbit/<string:stat>")
+@login_required
+def get_fitbit_stats(stat: str):
+    """
+    Return Fitbit stat summary for prefered stat which are:
+     - Sleep
+    :return: list of stats
+    """
+    date = datetime.date.today()
+    try:
+        fitbit = create_fitbit_client()
+        summary = ''
+        if stat == 'sleep':
+            summary = fitbit.get_sleep(date)
     except Exception as e:
         logging.error(e)
         summary = 'Something went wrong, make sure you have authorised first.'
@@ -206,7 +281,7 @@ def get_user_data():
 
 @app.route("/oura/<string:stat>")
 @login_required
-def get_oura_activity(stat: str):
+def get_oura_stats(stat: str):
     """
     Return Oura stat summary for prefered stat which are:
      - Readiness
@@ -216,7 +291,7 @@ def get_oura_activity(stat: str):
     :return: list of stats
     """
     try:
-        oura = create_client()
+        oura = create_oura_client()
         summary = ''
         if stat == 'readiness':
             summary = oura.readiness_summary()
@@ -232,17 +307,35 @@ def get_oura_activity(stat: str):
     return summary
 
 
-def create_client():
+def create_oura_client():
     """
     Create Oura client with client id and access token
     :return: Oura client
     """
     try:
-        oura_client = OuraClient(client_id=app.config.get('OURA_CLIENT_ID'), access_token=app.config.get('OURA_ACCESS_TOKEN'))
+        oura_client = OuraClient(client_id=app.config.get('OURA_CLIENT_ID'),
+                                 access_token=app.config.get('OURA_ACCESS_TOKEN'),
+                                 refresh_token=app.config.get('OURA_REFRESH_TOKEN'))
         return oura_client
     except Exception as e:
         logging.error(e)
         return 'Make sure you have provided needed credentials for Oura client'
+
+
+def create_fitbit_client():
+    """
+    Create Fitbit client with client id and access token
+    :return: Fitbit client
+    """
+    try:
+        fitbit_client = Fitbit(client_id=app.config.get('FITBIT_CLIENT_ID'),
+                               client_secret=app.config.get('FITBIT_CLIENT_SECRET'),
+                               access_token=app.config.get('FITBIT_ACCESS_TOKEN'),
+                               refresh_token=app.config.get('FITBIT_REFRESH_TOKEN'))
+        return fitbit_client
+    except Exception as e:
+        logging.error(e)
+        return 'Make sure you have provided needed credentials for Fitbit client'
 
 
 def get_google_provider_cfg():

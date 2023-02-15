@@ -25,3 +25,9 @@ class Config:
     GOOGLE_CLIENT_ID = environ.get('GOOGLE_CLIENT_ID')
     GOOGLE_CLIENT_SECRET = environ.get('GOOGLE_CLIENT_SECRET')
     GOOGLE_DISCOVERY_URL = environ.get('GOOGLE_DISCOVERY_URL')
+
+    # Fitbit configs
+    FITBIT_CLIENT_ID = environ.get('FITBIT_CLIENT_ID')
+    FITBIT_CLIENT_SECRET = environ.get('FITBIT_CLIENT_SECRET')
+    FITBIT_ACCESS_TOKEN = environ.get('FITBIT_ACCESS_TOKEN')
+    FITBIT_REFRESH_TOKEN = environ.get('FITBIT_REFRESH_TOKEN')
