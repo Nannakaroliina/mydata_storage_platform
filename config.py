@@ -18,7 +18,7 @@ class Config:
     OURA_REFRESH_TOKEN = environ.get('OURA_REFRESH_TOKEN')
 
     # Database configs
-    SQLALCHEMY_DATABASE_URI = environ.get('DATABASE_URL')
+    SQLALCHEMY_DATABASE_URI = environ.get('DATABASE_URL').replace("postgres://", "postgresql://", 1)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # Google OAuth
